@@ -1,18 +1,21 @@
 import React from 'react'
 import axios from 'axios'
 
-import './App.css'
-import { ReactComponent as Check } from './check.svg'
-
 const API_ENDPOINT = 'https://hn.algolia.com/api/v1/search?query='
 
 const useSemiPersistentState = (key, initialState) => {
+  const isMounted = React.useRef(false)
+
   const [value, setValue] = React.useState(
     localStorage.getItem(key) || initialState
   )
 
   React.useEffect(() => {
-    localStorage.setItem(key, value)
+    if (!isMounted.current) {
+      isMounted.current = true
+    } else {
+      localStorage.setItem(key, value)
+    }
   }, [value, key])
 
   return [value, setValue]
@@ -51,6 +54,10 @@ const storiesReducer = (state, action) => {
   }
 }
 
+const getSumComments = stories => {
+  return stories.data.reduce((result, value) => result + value.num_comments, 0)
+}
+
 const App = () => {
   const [searchTerm, setSearchTerm] = useSemiPersistentState('search', 'React')
 
@@ -81,12 +88,12 @@ const App = () => {
     handleFetchStories()
   }, [handleFetchStories])
 
-  const handleRemoveStory = item => {
+  const handleRemoveStory = React.useCallback(item => {
     dispatchStories({
       type: 'REMOVE_STORY',
       payload: item
     })
-  }
+  }, [])
 
   const handleSearchInput = event => {
     setSearchTerm(event.target.value)
@@ -98,15 +105,19 @@ const App = () => {
     event.preventDefault()
   }
 
+  const sumComments = React.useMemo(() => getSumComments(stories), [stories])
+
   return (
-    <div className='container'>
-      <h1 className='headline-primary'>My Hacker Stories</h1>
+    <div>
+      <h1>My Hacker Stories with {sumComments} comments.</h1>
 
       <SearchForm
         searchTerm={searchTerm}
         onSearchInput={handleSearchInput}
         onSearchSubmit={handleSearchSubmit}
       />
+
+      <hr />
 
       {stories.isError && <p>Something went wrong ...</p>}
 
@@ -120,7 +131,7 @@ const App = () => {
 }
 
 const SearchForm = ({ searchTerm, onSearchInput, onSearchSubmit }) => (
-  <form onSubmit={onSearchSubmit} className='search-form'>
+  <form onSubmit={onSearchSubmit}>
     <InputWithLabel
       id='search'
       value={searchTerm}
@@ -130,11 +141,7 @@ const SearchForm = ({ searchTerm, onSearchInput, onSearchSubmit }) => (
       <strong>Search:</strong>
     </InputWithLabel>
 
-    <button
-      type='submit'
-      disabled={!searchTerm}
-      className='button button_large'
-    >
+    <button type='submit' disabled={!searchTerm}>
       Submit
     </button>
   </form>
@@ -158,9 +165,7 @@ const InputWithLabel = ({
 
   return (
     <>
-      <label htmlFor={id} className='label'>
-        {children}
-      </label>
+      <label htmlFor={id}>{children}</label>
       &nbsp;
       <input
         ref={inputRef}
@@ -168,32 +173,28 @@ const InputWithLabel = ({
         type={type}
         value={value}
         onChange={onInputChange}
-        className='input'
       />
     </>
   )
 }
 
-const List = ({ list, onRemoveItem }) =>
+const List = React.memo(({ list, onRemoveItem }) =>
   list.map(item => (
     <Item key={item.objectID} item={item} onRemoveItem={onRemoveItem} />
   ))
+)
 
 const Item = ({ item, onRemoveItem }) => (
-  <div className='item'>
-    <span style={{ width: '40%' }}>
+  <div>
+    <span>
       <a href={item.url}>{item.title}</a>
     </span>
-    <span style={{ width: '30%' }}>{item.author}</span>
-    <span style={{ width: '10%' }}>{item.num_comments}</span>
-    <span style={{ width: '10%' }}>{item.points}</span>
-    <span style={{ width: '10%' }}>
-      <button
-        type='button'
-        onClick={() => onRemoveItem(item)}
-        className='button button_small'
-      >
-        <Check height='18px' width='18px' />
+    <span>{item.author}</span>
+    <span>{item.num_comments}</span>
+    <span>{item.points}</span>
+    <span>
+      <button type='button' onClick={() => onRemoveItem(item)}>
+        Dismiss
       </button>
     </span>
   </div>
